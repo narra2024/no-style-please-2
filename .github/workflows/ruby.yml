@@ -1,0 +1,105 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+# This workflow will download a prebuilt Ruby version, install dependencies and run tests with Rake
+# For more information see: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
+
+name: Ruby
+
+on:
+  push:
+    branches: [ "master",'main' ]
+  pull_request:
+    branches: [ "master" ,'main']
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby-version: ['3.2']
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Ruby
+    # To automatically get bug fixes and new Ruby versions for ruby/setup-ruby,
+    # change this to (see https://github.com/ruby/setup-ruby#versioning):
+    # uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+    # - name: bundle install
+      # run: bundle install
+    - shell: bash
+      name: build
+      run: |
+        chmod +x ./runThisToBuild && ./runThisToBuild
+        pwd 
+        ls -al
+        find ./docs -maxdepth 1 -type f -not -name  "*.html" -exec rm  {} \;
+        ls docs
+        ls -al docs/post
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v1
+      with:
+        path: ./docs
+ 
+    - name: buildforPage
+      shell: bash
+      run: |
+
+        cat _config.yml| sed "s/\/no-style-please//g" > tmp.yml
+
+        cat tmp.yml| sed "s/docs/dist/g" > _config.yml
+
+         rm -rf docs 
+        ./runThisToBuild
+
+        find ./dist -maxdepth 1 -type f -not -name  "*.html" -exec rm  {} \;
+
+ 
+
+    - name: Commit generated files
+      run: |
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "you@example.com"
+
+          ls -al
+          cd dist
+          git init 
+          git add .
+          git commit -m "Generated files after build"
+          git checkout -b dist
+          echo https://github.com/${{ github.repository }}.git
+          git remote add origin https://github.com/${{ github.repository }}.git
+
+          
+          
+          
+
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:dist -f  # 使用 GITHUB_TOKEN 进行身份验证
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 自动获取 Git
+            
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v2
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
